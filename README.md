@@ -1,4 +1,5 @@
 # Cron_Decode ⏰
+![CI](https://github.com/realMNohgee/Cron_Decode/actions/workflows/ci.yml/badge.svg) ![Python](https://img.shields.io/badge/python-3.9%2B-blue.svg) ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 **Parse, validate, and explain cron expressions in plain English.** Zero dependencies, pure Python stdlib.
 
