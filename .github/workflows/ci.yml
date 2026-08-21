@@ -9,6 +9,6 @@ jobs:
         with:
           python-version: '3.9'
       - name: Compile check
-        run: python3 -m py_compile Cron_Decode.py
+        run: python3 -m py_compile cron_decode.py
       - name: Smoke test (--help)
-        run: python3 Cron_Decode.py --help
+        run: python3 cron_decode.py --help

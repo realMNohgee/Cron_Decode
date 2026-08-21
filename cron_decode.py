@@ -268,6 +268,11 @@ def _build_time_part(minute_set: set[int], hour_set: set[int]) -> str:
         else:
             return f"{h - 12} PM"
 
+    def _fmt_time(h: int, m: int) -> str:
+        # Combine an hour + minute into a single 12-hour clock time, e.g. "9:30 AM".
+        num, ampm = _fmt_hour(h).split()
+        return f"{num}:{m:02d} {ampm}"
+
     sorted_h = sorted(hour_set)
 
     # Check for every-N pattern in hours (*/N)
@@ -316,12 +321,15 @@ def _build_time_part(minute_set: set[int], hour_set: set[int]) -> str:
             else:
                 return f"{_describe_field(minute_set, 'minute', 0, 59)} of {hdesc}"
         else:
-            # Non-contiguous hours
-            hdesc = _describe_field(hour_set, "hour", 0, 23)
+            # Non-contiguous hours — list each full clock time so the hour
+            # values can't be misread as minutes.
             if len(minute_set) == 1:
-                return f"At minute {list(minute_set)[0]}, {hdesc}"
-            else:
-                return f"{_describe_field(minute_set, 'minute', 0, 59)} of {hdesc}"
+                m = list(minute_set)[0]
+                times = ", ".join(_fmt_time(h, m) for h in sorted_h)
+                return f"At {times}"
+            hdesc = _describe_field(hour_set, "hour", 0, 23)
+            mdesc = _describe_field(minute_set, "minute", 0, 59)
+            return f"At minutes {mdesc} past hours {hdesc}"
 
     # Case: single hour, multiple minutes → "At 9 AM, 0 through 30"
     if len(hour_set) == 1:
@@ -343,22 +351,26 @@ def _next_executions(raw: str, count: int = 5) -> list[str]:
 
     minute_set, hour_set, dom_set, month_set, dow_set = fields
 
+    # Cron day-of-week is Sun=0..Sat=6 (7→Sun), but datetime.weekday() is
+    # Mon=0..Sun=6. Convert so comparisons match the correct day.
+    dow_py = {(d + 6) % 7 for d in dow_set}
+
     now = datetime.now().replace(second=0, microsecond=0)
     results: list[str] = []
     cursor = now
 
-    for _ in range(count * 10):  # safety limit
-        if cursor.minute + 1 < 60:
-            cursor = cursor + timedelta(minutes=1)
-        else:
-            cursor = cursor.replace(minute=0) + timedelta(hours=1)
-
+    # Step one minute at a time, but search a full year ahead so sparse
+    # schedules (daily/weekly/monthly/yearly) are still found. Worst case is
+    # ~526k iterations, which is well under a second in pure Python.
+    max_steps = 60 * 24 * 367
+    for _ in range(max_steps):
+        cursor += timedelta(minutes=1)
         if (
             cursor.minute in minute_set
             and cursor.hour in hour_set
             and cursor.day in dom_set
             and cursor.month in month_set
-            and cursor.weekday() in dow_set
+            and cursor.weekday() in dow_py
         ):
             results.append(cursor.strftime("%Y-%m-%d %H:%M:%S %A"))
             if len(results) >= count:
